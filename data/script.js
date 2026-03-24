@@ -12,10 +12,13 @@ function onload(event) {
     powerButton.onclick = () => {
         // Check if the websocket is actually open before sending
         if (websocket.readyState === WebSocket.OPEN) {
+            console.log("Trying to send something")
             if (ledOn) {
                 websocket.send("STOP");   // If it was ON, turn it OFF
+                console.log("sent STOP")
             } else {
                 websocket.send("START");  // If it was OFF, turn it ON
+                console.log("sent START")
             }
             ledOn = !ledOn; // Flip the local state
         } else {

@@ -3,9 +3,10 @@
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
 #include <LittleFS.h>
+#include <QTRSensors.h>
 
-const char* ssid = "Clanker";
-const char* password = "pr1234";
+const char* ssid = "Clanker line bot";
+const char* password = "123456789";
 
 bool ledState = 0;
 const int ledPin = 27;
@@ -14,6 +15,19 @@ AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 
 IPAddress IP_addr;
+
+QTRSensors qtr;
+const u_int8_t sensorCount = 8;
+uint16_t sensorValues[sensorCount];
+
+uint8_t sensorPins[sensorCount] = {4, 16, 17, 5, 18, 19, 21, 22};
+
+float Kp = 0;
+float Ki = 0;
+float Kd = 0;
+
+int P, I, D;
+int lastError = 0;
 
 void initLittleFS(){
     if(!LittleFS.begin(true)){
@@ -66,31 +80,64 @@ void initWebSocket(){
     server.addHandler(&ws);
 }
 
+void initQTR(){
+
+    // Initialize QTR-8RC
+    qtr.setTypeRC();
+    qtr.setSensorPins(sensorPins, sensorCount);
+
+    delay(500);
+
+    Serial.println("Starting calibration...");
+
+    // Calibrate for ~3 seconds
+    for (uint16_t i = 0; i < 200; i++)
+    {
+        qtr.calibrate();
+        delay(20);
+    }
+
+    Serial.println("Calibration done.");
+}
+
 void setup() {
     Serial.begin(115200);
 
-    pinMode(ledPin, OUTPUT);
-    digitalWrite(ledPin, LOW);
+    // pinMode(ledPin, OUTPUT);
+    // digitalWrite(ledPin, LOW);
 
-    initLittleFS();
-    initWifi();
-    initWebSocket();
+    // initLittleFS();
+    // initWifi();
+    // initWebSocket();
 
-    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-        request->send(LittleFS, "/index.html", "text/html");
-    });
+    // server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+    //     request->send(LittleFS, "/index.html", "text/html");
+    // });
 
-    server.serveStatic("/", LittleFS, "/");
+    // server.serveStatic("/", LittleFS, "/");
 
-    server.begin();
+    // server.begin();
+
+    initQTR();
 }
 
 void loop() {
 
-    if (ledState){
-        digitalWrite(ledPin, HIGH);
+    // if (ledState){
+    //     digitalWrite(ledPin, HIGH);
+    // }
+    // else {
+    //     digitalWrite(ledPin, LOW);
+    // }
+    // Read calibrated values (0–1000)
+    qtr.read(sensorValues);
+
+    for (uint8_t i = 0; i < sensorCount; i++)
+    {
+        Serial.print(sensorValues[i]);
+        Serial.print('\t');
     }
-    else {
-        digitalWrite(ledPin, LOW);
-    }
+    Serial.println();
+
+    delay(100);
 }
