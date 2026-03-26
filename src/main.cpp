@@ -8,26 +8,25 @@
 const char* ssid = "Clanker line bot";
 const char* password = "123456789";
 
-bool ledState = 0;
-const int ledPin = 27;
+enum State {OFF, ON};
+enum State robotState = OFF;
+
+const int motorLeft1 = 27;
+const int motorLeft2 = 14;
+const int motorRight1 = 12;
+const int motorRight2 = 13;
+
+const int ENA = 25;
+const int ENB = 26;
+
+QTRSensors qtr;
+const u_int8_t sensorCount = 8;
+u_int16_t sensorValues[sensorCount];
 
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 
 IPAddress IP_addr;
-
-QTRSensors qtr;
-const u_int8_t sensorCount = 8;
-uint16_t sensorValues[sensorCount];
-
-uint8_t sensorPins[sensorCount] = {4, 16, 17, 5, 18, 19, 21, 22};
-
-float Kp = 0;
-float Ki = 0;
-float Kd = 0;
-
-int P, I, D;
-int lastError = 0;
 
 void initLittleFS(){
     if(!LittleFS.begin(true)){
@@ -43,17 +42,22 @@ void initWifi(){
     Serial.println(IP_addr);
 }
 
+void broadcastState(){
+    ws.textAll("{\"state\":\"" + String(robotState) + "\"}");
+}
+
 void handleWebSocketMessage(void *arg, u_int8_t *data, size_t len){
     AwsFrameInfo *info = (AwsFrameInfo*)arg;
     if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT){
         data[len] = 0;
         String message = (char*)data;
 
-        if (message == "START"){
-            ledState = 1;
+        if (message == "STATE"){
+            broadcastState();
         }
-        else if (message == "STOP"){
-            ledState = 0;
+        else if (message == "TOGGLE"){
+            robotState = (robotState == ON) ? OFF : ON;
+            broadcastState();
         }
     }
 }
@@ -81,63 +85,59 @@ void initWebSocket(){
 }
 
 void initQTR(){
-
-    // Initialize QTR-8RC
     qtr.setTypeRC();
-    qtr.setSensorPins(sensorPins, sensorCount);
+    qtr.setSensorPins((const uint8_t[]){4, 16, 17, 5, 18, 19, 21, 22}, sensorCount);
 
-    delay(500);
-
-    Serial.println("Starting calibration...");
-
-    // Calibrate for ~3 seconds
-    for (uint16_t i = 0; i < 200; i++)
-    {
+    digitalWrite(LED_BUILTIN, HIGH);
+    for(uint16_t i=0; i<400; i++){
         qtr.calibrate();
-        delay(20);
+        delay(5);
     }
-
-    Serial.println("Calibration done.");
+    digitalWrite(LED_BUILTIN, LOW);
 }
 
 void setup() {
     Serial.begin(115200);
 
-    // pinMode(ledPin, OUTPUT);
-    // digitalWrite(ledPin, LOW);
+    initLittleFS();
+    initWifi();
+    initWebSocket();
 
-    // initLittleFS();
-    // initWifi();
-    // initWebSocket();
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+        request->send(LittleFS, "/index.html", "text/html");
+    });
 
-    // server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-    //     request->send(LittleFS, "/index.html", "text/html");
-    // });
+    server.serveStatic("/", LittleFS, "/");
 
-    // server.serveStatic("/", LittleFS, "/");
+    server.begin();
 
-    // server.begin();
+    pinMode(LED_BUILTIN, OUTPUT);
 
     initQTR();
 }
 
 void loop() {
+    ws.cleanupClients();
 
-    // if (ledState){
-    //     digitalWrite(ledPin, HIGH);
-    // }
-    // else {
-    //     digitalWrite(ledPin, LOW);
-    // }
-    // Read calibrated values (0–1000)
-    qtr.read(sensorValues);
+    if (robotState == ON){
+        static unsigned long lastSend = 0;
+        if (millis() - lastSend > 100) {
 
-    for (uint8_t i = 0; i < sensorCount; i++)
-    {
-        Serial.print(sensorValues[i]);
-        Serial.print('\t');
+            uint16_t position = qtr.readLineWhite(sensorValues);
+
+            String json = "{\"position\":" + String(position) + ",";
+            json += "\"sensors\":[";
+
+            for (uint8_t i = 0; i < sensorCount; i++) {
+                json += String(sensorValues[i]);
+                if (i < sensorCount - 1) json += ",";
+            }
+
+            json += "]}";
+
+            ws.textAll(json);
+
+            lastSend = millis();
+        }
     }
-    Serial.println();
-
-    delay(100);
 }
