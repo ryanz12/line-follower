@@ -4,17 +4,24 @@
 #include <ESPAsyncWebServer.h>
 #include <LittleFS.h>
 #include <QTRSensors.h>
+#include <ArduinoJson.h>
 
 const char* ssid = "Clanker line bot";
 const char* password = "123456789";
 
 enum State {OFF, ON, RECAL};
-enum State robotState = ON;
+enum State robotState = OFF;
 
 const int motorLeft1 = 25;
 const int motorLeft2 = 26;
 const int motorRight1 = 27;
 const int motorRight2 = 13;
+
+int speed = 100;
+
+float kP = 0;
+float kI = 0;
+float kD = 0;
 
 QTRSensors qtr;
 const u_int8_t sensorCount = 8;
@@ -49,16 +56,39 @@ void handleWebSocketMessage(void *arg, u_int8_t *data, size_t len){
         data[len] = 0;
         String message = (char*)data;
 
-        if (message == "STATE"){
+        JsonDocument doc;
+        DeserializationError error = deserializeJson(doc, message);
+        
+        if (error){
+            ws.textAll("Error parsing JSON string");
+            Serial.print(F("deserializeJson() failed: "));
+            Serial.println(error.f_str());
+            return;
+        }
+
+        const char* type = doc["type"] | "";
+        if (strcmp(type, "request_state") == 0){
             broadcastState();
         }
-        else if (message == "TOGGLE"){
+        else if(strcmp(type, "request_toggle") == 0){
             robotState = (robotState == ON) ? OFF : ON;
             broadcastState();
         }
-        else if (message == "RECAL"){
+        else if (strcmp(type, "request_recalibrate") == 0){
             robotState = RECAL;
             broadcastState();
+        }
+        else if (strcmp(type, "request_change_speed") == 0){
+            speed = doc["speed"];
+            Serial.println(speed);
+        }
+        else if (strcmp(type, "set_pid") == 0){
+            kP = doc["kP"];
+            kI = doc["kI"];
+            kD = doc["kD"];
+            Serial.println(kP);
+            Serial.println(kI);
+            Serial.println(kD);
         }
     }
 }
@@ -97,6 +127,21 @@ void initQTR(){
     digitalWrite(LED_BUILTIN, LOW);
 }
 
+void driveForward(){
+    analogWrite(motorLeft1, speed);
+    digitalWrite(motorLeft2, LOW);
+
+    analogWrite(motorRight1, speed);
+    digitalWrite(motorRight2, LOW);
+}
+
+void resetMotors(){
+    digitalWrite(motorLeft1, LOW);
+    digitalWrite(motorLeft2, LOW);
+    digitalWrite(motorRight1, LOW);
+    digitalWrite(motorRight2, LOW);
+}
+
 void setup() {
     Serial.begin(115200);
 
@@ -121,13 +166,16 @@ void loop() {
     ws.cleanupClients();
 
     if (robotState == ON){
+        uint16_t position = qtr.readLineBlack(sensorValues);
+        int error = 3500 - position;
+
+        // send to client every 100ms
         static unsigned long lastSend = 0;
         if (millis() - lastSend > 100) {
 
-            uint16_t position = qtr.readLineBlack(sensorValues);
-
             String json = "{\"type\":\"sensors\",";
             json += "\"position\":" + String(position) + ",";
+            json += "\"error\":" + String(error) + ",";
             json += "\"sensors\":[";
 
             for (uint8_t i = 0; i < sensorCount; i++) {
@@ -144,15 +192,15 @@ void loop() {
 
             lastSend = millis();
         }
-        // analogWrite(motorLeft1, 200);
-        // digitalWrite(motorLeft2, LOW);
 
-        // analogWrite(motorRight1, 200);
-        // digitalWrite(motorRight2, LOW);
+        driveForward();
     }
     else if (robotState == RECAL){
         initQTR();
         robotState = OFF;
         broadcastState();
+    }
+    else if (robotState == OFF){
+        resetMotors();
     }
 }

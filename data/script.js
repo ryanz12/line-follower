@@ -38,6 +38,7 @@ function initChart() {
     });
 }
 
+
 function onload(event) {
     initWebSocket();
 
@@ -48,34 +49,71 @@ function onload(event) {
     powerButton.onclick = () => {
         // Check if the websocket is actually open before sending
         if (websocket.readyState === WebSocket.OPEN) {
+            const msg = {
+                type: "request_toggle"
+            };
+
             console.log("Trying to send something")
-            websocket.send("TOGGLE");
+            websocket.send(JSON.stringify(msg));
             console.log("SENT TOGGLE");
-        } else {
+        } 
+        else {
             console.log("Websocket is not open yet.");
         }
     };
 
     recalButton.onclick = () => {
         if (websocket.readyState === WebSocket.OPEN) {
+            const msg = {
+                type: "request_recalibrate"
+            };
+
             console.log("Trying to send something")
-            websocket.send("RECAL");
-            console.log("SENT TOGGLE");
-        } else {
+            websocket.send(JSON.stringify(msg));
+            console.log("SENT RECALIBRATE");
+        } 
+        else {
             console.log("Websocket is not open yet.");
         }
     }
 
-    // speedSlider.oninput = () => {
-    //     const speedValue = speedSlider.value;
+    speedSlider.oninput = () => {
+        if (websocket.readyState === WebSocket.OPEN){
+            const speedValue = speedSlider.value;
 
-    //     const msg = {
-    //         type: "speed",
-    //         value: parseInt(speedValue)
-    //     };
+            const msg = {
+                type: "request_change_speed",
+                speed: parseInt(speedValue)
+            };
 
-    //     websocket.send(JSON.stringify(msg));
-    // }
+            websocket.send(JSON.stringify(msg));
+        }
+        else {
+            console.log("WebSocket is not open yet.")
+        }
+    }
+
+    const kp = document.getElementById("kP"); 
+    const ki = document.getElementById("kI"); 
+    const kd = document.getElementById("kD"); 
+
+    function sendPID(){
+        if (websocket.readyState === WebSocket.OPEN){
+            const msg = {
+                type: "set_pid",
+                kP: parseFloat(kp.value) || 0,
+                kI: parseFloat(ki.value) || 0,
+                kD: parseFloat(kd.value) || 0
+            };
+
+            websocket.send(JSON.stringify(msg));
+        }
+    }
+
+    [kp, ki, kd].forEach(x => {
+        x.addEventListener("change", sendPID);
+    })
+
     initChart();
 }
 
@@ -107,7 +145,10 @@ function initWebSocket() {
 
     websocket.onopen = function(event) {
         console.log("Connection opened");
-        websocket.send("STATE");
+        const msg = {
+            type: "request_state"
+        }
+        websocket.send(JSON.stringify(msg));
     };
 
     websocket.onclose = function(event) {
