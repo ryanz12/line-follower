@@ -15,8 +15,15 @@
             <h2>Robot Mode</h2>
             <p id="robot-state"></p>
             <button id="powerButton">Toggle</button>
+            <button id="recalibrate">Recalibrate</button>
+            <div class="sliderContainer">
+                <label for="slider">Speed: </label>
+                <input type="range" name="slider" id="speed" min="0" max="255" value="100">
+            </div>
         </div>
     </div>
+    <script src="/chart.js"></script>
+    <canvas id="positionChart"></canvas>
     <script src="script.js"></script>
 </body>
 </html>

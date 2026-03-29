@@ -8,16 +8,13 @@
 const char* ssid = "Clanker line bot";
 const char* password = "123456789";
 
-enum State {OFF, ON};
-enum State robotState = OFF;
+enum State {OFF, ON, RECAL};
+enum State robotState = ON;
 
-const int motorLeft1 = 27;
-const int motorLeft2 = 14;
-const int motorRight1 = 12;
+const int motorLeft1 = 25;
+const int motorLeft2 = 26;
+const int motorRight1 = 27;
 const int motorRight2 = 13;
-
-const int ENA = 25;
-const int ENB = 26;
 
 QTRSensors qtr;
 const u_int8_t sensorCount = 8;
@@ -57,6 +54,10 @@ void handleWebSocketMessage(void *arg, u_int8_t *data, size_t len){
         }
         else if (message == "TOGGLE"){
             robotState = (robotState == ON) ? OFF : ON;
+            broadcastState();
+        }
+        else if (message == "RECAL"){
+            robotState = RECAL;
             broadcastState();
         }
     }
@@ -108,12 +109,12 @@ void setup() {
     });
 
     server.serveStatic("/", LittleFS, "/");
-
     server.begin();
 
     pinMode(LED_BUILTIN, OUTPUT);
 
     initQTR();
+    Serial.println(WiFi.softAPIP());
 }
 
 void loop() {
@@ -123,15 +124,19 @@ void loop() {
         static unsigned long lastSend = 0;
         if (millis() - lastSend > 100) {
 
-            uint16_t position = qtr.readLineWhite(sensorValues);
+            uint16_t position = qtr.readLineBlack(sensorValues);
 
-            String json = "{\"position\":" + String(position) + ",";
+            String json = "{\"type\":\"sensors\",";
+            json += "\"position\":" + String(position) + ",";
             json += "\"sensors\":[";
 
             for (uint8_t i = 0; i < sensorCount; i++) {
                 json += String(sensorValues[i]);
                 if (i < sensorCount - 1) json += ",";
+                Serial.print(sensorValues[i]);
+                Serial.print('\t');
             }
+            Serial.println(position);
 
             json += "]}";
 
@@ -139,5 +144,15 @@ void loop() {
 
             lastSend = millis();
         }
+        // analogWrite(motorLeft1, 200);
+        // digitalWrite(motorLeft2, LOW);
+
+        // analogWrite(motorRight1, 200);
+        // digitalWrite(motorRight2, LOW);
+    }
+    else if (robotState == RECAL){
+        initQTR();
+        robotState = OFF;
+        broadcastState();
     }
 }
