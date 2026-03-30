@@ -18,6 +18,7 @@ const int motorRight1 = 27;
 const int motorRight2 = 13;
 
 int speed = 100;
+int feedforward = 3500;
 
 float kP = 0;
 float kI = 0;
@@ -89,6 +90,9 @@ void handleWebSocketMessage(void *arg, u_int8_t *data, size_t len){
             Serial.println(kP);
             Serial.println(kI);
             Serial.println(kD);
+        }
+        else if (strcmp(type, "set_ff") == 0){
+            feedforward = doc["ff"];
         }
     }
 }
@@ -167,7 +171,7 @@ void loop() {
 
     if (robotState == ON){
         uint16_t position = qtr.readLineBlack(sensorValues);
-        int error = 3500 - position;
+        int error = feedforward - position;
 
         // send to client every 100ms
         static unsigned long lastSend = 0;
@@ -197,7 +201,7 @@ void loop() {
     }
     else if (robotState == RECAL){
         initQTR();
-        robotState = OFF;
+        robotState = ON;
         broadcastState();
     }
     else if (robotState == OFF){

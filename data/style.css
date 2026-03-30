@@ -1,7 +1,114 @@
+@font-face {
+    font-family: "Roboto Slab";
+    src: url("/fonts/RobotoSlab-Regular.ttf");
+    font-weight: 400;
+    font-style: normal;
+}
+
 body {
     margin: 0;
+    background-color: #1A1B27;
+    font-family: "Roboto Slab", serif;
+    color: #c0caf5;
 }
 
 .nav {
-    background-color: aliceblue;
+    background-color: #16161F;
+    color: #f7768e;
+    padding: 10px 15px;
+    height: 45px;
+}
+
+.nav > h1 {
+    margin: 0;
+    font-weight: bolder;
+}
+
+.control-panel {
+    position: fixed;
+    top: 0;
+    right: 0;         
+    width: 275px;     
+    height: 100vh;
+    background-color: #16161F;
+    padding: 5px 20px;
+}
+
+.control-panel > h3 {
+    margin-bottom: 20px;
+}
+
+.container {
+    padding: 0px 20px;
+}
+
+.robot-off {
+    color: rgb(255, 0, 0);
+}
+
+.robot-on {
+    color: #9ece6a;
+}
+
+.robot-recal {
+    color: #2ac3de;
+}
+
+button {
+    cursor: pointer;
+    padding: 10px 20px;
+    font-size: medium;
+    font-weight: bold;
+    border: none;
+    border-radius: 10px;
+}
+
+.sliderContainer {
+    margin-top: 40px;
+    margin-bottom: 40px;
+    display: flex;
+    flex-direction: column;
+}
+
+.tuningContainer {
+    display: grid;
+    grid-template-columns: 40px 1fr; 
+    gap: 10px;
+    align-items: center; 
+    margin-top: 20px;
+}
+
+.tuningContainer input {
+    width: 60px; 
+}
+
+#recalibrateButton {
+    background-color: #2ac3de;
+    margin-left: 10px;
+}
+
+.button-on {
+    background-color: #9ece6a;
+}
+
+.button-off {
+    background-color: #f7768e;
+}
+
+.pChartContainer {
+    width: 70vw;
+    height: 80vh;
+}
+
+.sChartContainer {
+    width: 70vw;
+    height: 80vh;
+}
+
+.setpointContainer {
+    margin-top: 40px;
+}
+
+.setpointContainer > label {
+    margin-right: 10px;
 }

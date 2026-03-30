@@ -1,166 +1,253 @@
-var gateway = `ws://${window.location.hostname}/ws`;
-var websocket;
-var ledOn = false;
-var robotOn = 0;
+const gateway = `ws://${window.location.hostname}/ws`;
+let websocket;
+let robotOn = false;
 
-let state = document.getElementById("robot-state");
-
-window.addEventListener('load', onload);
-
-let chart;
-let chartData = [];
+let chart, sensorChart;
 let chartLabels = [];
+let positionData = [];
+let errorData = [];
+const sensorValues = new Array(8).fill(0);
+let setpoint = 3500;
 
-function initChart() {
-    const ctx = document.getElementById('positionChart').getContext('2d');
+const powerButton = document.getElementById("powerButton");
+const recalButton = document.getElementById("recalibrateButton");
+const speedSlider = document.getElementById("speedSlider");
+const speedLabel = document.getElementById("speedLabel");
+const kpInput = document.getElementById("kPInput");
+const kiInput = document.getElementById("kIInput");
+const kdInput = document.getElementById("kDInput");
+const stateText = document.getElementById("robot-state");
+const spInput = document.getElementById("setpointInput");
 
-    chart = new Chart(ctx, {
-        type: 'line',
+const message_server = (data) => {
+    if (websocket.readyState !== WebSocket.OPEN){
+        console.log("Web socket is not ready yet");
+        return;
+    }
+    websocket.send(JSON.stringify(data));
+    console.log("Sent message: ", data);
+};
+
+const initWebSocket = () => {
+    console.log("Trying to open a web socket connection");
+    websocket = new WebSocket(gateway);
+    
+    websocket.onopen = (e) => {
+        console.log("Connection established");
+        const msg = {
+            type: "request_state"
+        };
+        message_server(msg);
+    };
+
+    websocket.onclose = (e) => {
+        console.log("Connection closed");
+        
+        // try reconnect after 2 seconds
+        setTimeout(initWebSocket, 2000);
+    };
+
+    // handle receiving message
+    websocket.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        updateUI(data);
+        console.log(data);
+    }
+};
+
+const initChart = () => {
+    const posChart = document.getElementById("positionChart").getContext("2d");
+    const sChart = document.getElementById("sensorChart").getContext("2d");
+
+    chart = new Chart(posChart, {
+        type: "line",
         data: {
             labels: chartLabels,
-            datasets: [{
-                label: 'Line Position',
-                data: chartData,
-                borderWidth: 2,
-                tension: 0.2
-            }]
+            datasets: [
+                {
+                    label: "Position",
+                    data: positionData,
+                    borderWidth: 2,
+                    tension: 0.2
+                },
+                {
+                    label: "Error",
+                    data: errorData,
+                    borderWidth: 2,
+                    tension: 0.2
+                },
+                {
+                    label: "Middle Position",
+                    data: new Array(50).fill(setpoint),
+                    borderWidth: 2,
+                    tension: 0.2
+                }
+            ]
         },
         options: {
+            maintainAspectRatio: false,
             animation: false,
             responsive: true,
             scales: {
                 y: {
-                    suggestedMin: 0,
-                    suggestedMax: 7000               
+                    beginAtZero: false,
+                    ticks: {
+                        color: "#c0caf5"
+                    },
+                    grid: {
+                        color: "#414868"
+                    }
+                },
+                x: {
+                    grid: {
+                        color: "#414868"
+                    }
                 }
             }
         }
     });
-}
 
-
-function onload(event) {
-    initWebSocket();
-
-    const powerButton = document.getElementById("powerButton");
-    const recalButton = document.getElementById("recalibrate");
-    const speedSlider = document.getElementById("speed");
-    
-    powerButton.onclick = () => {
-        // Check if the websocket is actually open before sending
-        if (websocket.readyState === WebSocket.OPEN) {
-            const msg = {
-                type: "request_toggle"
-            };
-
-            console.log("Trying to send something")
-            websocket.send(JSON.stringify(msg));
-            console.log("SENT TOGGLE");
-        } 
-        else {
-            console.log("Websocket is not open yet.");
+    sensorChart = new Chart(sChart, {
+        type: "bar",
+        data: {
+            labels: ["S0", "S1", "S2", "S3", "S4", "S5", "S6", "S7"],
+            datasets: [{
+                label: "Sensor Values",
+                data: sensorValues,
+                borderWidth: 1
+            }]
+        },
+        options: {
+            maintainAspectRatio: false,
+            animation: {
+                duration: 100,
+                easing: "linear"
+            },
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    suggestedMax: 1000,
+                    ticks: {
+                        color: "#c0caf5"
+                    },
+                    grid: {
+                        color: "#414868"
+                    }
+                },
+                x: {
+                    grid: {
+                        color: "#414868"
+                    }
+                }
+            }
         }
-    };
+    });
+};
 
-    recalButton.onclick = () => {
-        if (websocket.readyState === WebSocket.OPEN) {
-            const msg = {
-                type: "request_recalibrate"
-            };
+const updateUI = (data) => {
 
-            console.log("Trying to send something")
-            websocket.send(JSON.stringify(msg));
-            console.log("SENT RECALIBRATE");
-        } 
-        else {
-            console.log("Websocket is not open yet.");
-        }
-    }
-
-    speedSlider.oninput = () => {
-        if (websocket.readyState === WebSocket.OPEN){
-            const speedValue = speedSlider.value;
-
-            const msg = {
-                type: "request_change_speed",
-                speed: parseInt(speedValue)
-            };
-
-            websocket.send(JSON.stringify(msg));
-        }
-        else {
-            console.log("WebSocket is not open yet.")
-        }
-    }
-
-    const kp = document.getElementById("kP"); 
-    const ki = document.getElementById("kI"); 
-    const kd = document.getElementById("kD"); 
-
-    function sendPID(){
-        if (websocket.readyState === WebSocket.OPEN){
-            const msg = {
-                type: "set_pid",
-                kP: parseFloat(kp.value) || 0,
-                kI: parseFloat(ki.value) || 0,
-                kD: parseFloat(kd.value) || 0
-            };
-
-            websocket.send(JSON.stringify(msg));
+    if (Object.hasOwn(data, "state")){
+        switch(data.state){
+            case "0":
+                stateText.innerHTML = "Robot Status: OFF";
+                stateText.className = "robot-off";
+                powerButton.className = "button-on";
+                powerButton.innerHTML = "Turn ON"
+                break;
+            case "1":
+                stateText.innerHTML = "Robot Status: ON";
+                stateText.className = "robot-on";
+                powerButton.className = "button-off";
+                powerButton.innerHTML = "Turn OFF"
+                recalButton.disabled = false;
+                break;
+            case "2":
+                stateText.innerHTML = "Robot Status: RECALIBRATING";
+                stateText.className = "robot-recal";
+                recalButton.disabled = true;
+                break;
         }
     }
-
-    [kp, ki, kd].forEach(x => {
-        x.addEventListener("change", sendPID);
-    })
-
-    initChart();
-}
-
-function updateUI(data) {
-    if (data.type === "state") {
-        robotOn = data.value
-
-        state.textContent = (robotOn == 1) ? "ON" : "OFF";
-    }
-
-    else if (data.type === "sensors") {
+    else if (data.type === "sensors"){
         const pos = data.position;
+        const err = data.error;
 
-        chartData.push(pos);
-        chartLabels.push(""); // or timestamp
+        positionData.push(pos);
+        errorData.push(err);
+        chartLabels.push("");
 
-        if (chartData.length > 50) {
-            chartData.shift();
+        if (positionData.length > 50){
+            positionData.shift();
+            errorData.shift();
             chartLabels.shift();
         }
 
+        chart.data.datasets[0].data = positionData;
+        chart.data.datasets[1].data = errorData;
+        chart.data.datasets[2].data = new Array(positionData.length).fill(setpoint);
         chart.update();
+
+        data.sensors.forEach((val, index) => {
+            sensorChart.data.datasets[0].data[index] = val;
+        });
+
+        sensorChart.update();
     }
-}
+};
 
-function initWebSocket() {
-    console.log("Trying to open a websocket connection");
-    websocket = new WebSocket(gateway);
+window.addEventListener("load", (e) => {
+    // init websocket
+    initWebSocket();
 
-    websocket.onopen = function(event) {
-        console.log("Connection opened");
+    
+    // bind events to HTML
+    powerButton.addEventListener("click", (ev) => {
         const msg = {
-            type: "request_state"
-        }
-        websocket.send(JSON.stringify(msg));
-    };
+            type: "request_toggle"
+        };
+        message_server(msg);
+    });
 
-    websocket.onclose = function(event) {
-        console.log("Connection closed");
-        // Optional: Attempt to reconnect after 2 seconds
-        setTimeout(initWebSocket, 2000);
-    };
+    recalButton.addEventListener("click", (ev) => {
+        const msg = {
+            type: "request_recalibrate"
+        };
+        message_server(msg);
+    });
 
-    // Client receives ws message from server
-    websocket.onmessage = function(event) {
-        const data = JSON.parse(event.data);
-        updateUI(data);
-        console.log(data);
-    };
-}
+    speedSlider.addEventListener("input", (ev) => {
+        speedLabel.innerHTML = `Speed: ${speedSlider.value}`;
+
+        const msg = {
+            type: "request_change_speed",
+            speed: parseInt(speedSlider.value)
+        };
+        message_server(msg);
+    });
+
+    spInput.addEventListener("change", (ev) => {
+        setpoint = spInput.value;
+
+        const msg = {
+            type: "set_ff",
+            ff: parseInt(setpoint) || 0
+        };
+        message_server(msg);
+    });
+
+    [kpInput, kiInput, kdInput].forEach(input => {
+        input.addEventListener("change", () => {
+            const msg = {
+                type: "set_pid",
+                kP: parseFloat(kpInput.value) || 0,
+                kI: parseFloat(kiInput.value) || 0,
+                kD: parseFloat(kdInput.value) || 0,
+            };
+            message_server(msg);
+        });
+    });
+    
+    // init chartjs & chart
+    initChart();
+});
