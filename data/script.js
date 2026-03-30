@@ -7,7 +7,7 @@ let chartLabels = [];
 let positionData = [];
 let errorData = [];
 const sensorValues = new Array(8).fill(0);
-let setpoint = 3500;
+let setpoint;
 
 const powerButton = document.getElementById("powerButton");
 const recalButton = document.getElementById("recalibrateButton");
@@ -145,9 +145,13 @@ const initChart = () => {
     });
 };
 
+// handle data from server
 const updateUI = (data) => {
 
     if (Object.hasOwn(data, "state")){
+        if (data.setpoint){
+            setpoint = data.setpoint;
+        }
         switch(data.state){
             case "0":
                 stateText.innerHTML = "Robot Status: OFF";
@@ -227,6 +231,10 @@ window.addEventListener("load", (e) => {
     });
 
     spInput.addEventListener("change", (ev) => {
+        if (isNaN(spInput.value)){
+            alert("Must input a number");
+            return;
+        }
         setpoint = spInput.value;
 
         const msg = {
@@ -238,6 +246,10 @@ window.addEventListener("load", (e) => {
 
     [kpInput, kiInput, kdInput].forEach(input => {
         input.addEventListener("change", () => {
+            if (isNaN(input.value)){
+                alert("Must input a number");
+                return;
+            }
             const msg = {
                 type: "set_pid",
                 kP: parseFloat(kpInput.value) || 0,

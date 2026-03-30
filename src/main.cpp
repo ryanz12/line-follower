@@ -48,7 +48,7 @@ void initWifi(){
 }
 
 void broadcastState(){
-    ws.textAll("{\"state\":\"" + String(robotState) + "\"}");
+    ws.textAll("{\"state\":\"" + String(robotState) + "\", \"setpoint\":\"" + String(feedforward) + "\"}");
 }
 
 void handleWebSocketMessage(void *arg, u_int8_t *data, size_t len){
